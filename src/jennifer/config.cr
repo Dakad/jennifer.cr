@@ -17,6 +17,7 @@ module Jennifer
   # * `port = -1`
   # * `logger = Log.for("db", :debug)`
   # * `schema = "public"`
+  # * `encoding = "utf8mb4_general_ci"`
   # * `user`
   # * `password`
   # * `db`
@@ -65,12 +66,14 @@ module Jennifer
     CONNECTION_URI_PARAMS = {
       :max_pool_size, :initial_pool_size, :max_idle_pool_size,
       :retry_attempts, :checkout_timeout, :retry_delay,
+      :encoding,
     }
     # :nodoc:
     STRING_FIELDS = {
       :user, :password, :db, :host, :adapter, :migration_files_path, :schema,
       :structure_folder, :local_time_zone_name, :command_shell, :docker_container, :docker_source_location,
       :model_files_path,
+      :encoding,
     }
     # :nodoc:
     INT_FIELDS = {:port, :max_pool_size, :initial_pool_size, :max_idle_pool_size, :retry_attempts}
@@ -153,6 +156,7 @@ module Jennifer
       @adapter = ""
       @host = "localhost"
       @port = -1
+      @encoding = "utf8mb4_general_ci"
       @migration_files_path = "./db/migrations"
       @model_files_path = "./src/models"
       @local_time_zone = Time::Location.local
