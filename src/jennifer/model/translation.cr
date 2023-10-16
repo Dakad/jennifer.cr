@@ -2,21 +2,21 @@ module Jennifer
   module Model
     # Includes localization methods.
     #
-    # Depends of parent class `::lookup_ancestors` and `::i18n_scope` methods.
+    # Depends of parent class `.lookup_ancestors` and `.i18n_scope` methods.
     module Translation
       module ClassMethods
-        # Search translation for given attribute.
-        def human_attribute_name(attribute : String | Symbol)
+        # Search translation for given attribute name.
+        def human_attribute_name(name : String | Symbol)
           prefix = "#{GLOBAL_SCOPE}.attributes."
 
           lookup_ancestors do |ancestor|
-            path = "#{prefix}#{ancestor.i18n_key}.#{attribute}"
+            path = "#{prefix}#{ancestor.i18n_key}.#{name}"
             return I18n.translate(path) if I18n.exists?(path)
           end
 
-          path = "#{prefix}.#{attribute}"
+          path = "#{prefix}.#{name}"
           return I18n.translate(path) if I18n.exists?(path)
-          Inflector.humanize(attribute)
+          Wordsmith::Inflector.humanize(name)
         end
 
         # Returns localized model name.
@@ -28,8 +28,8 @@ module Jennifer
             return I18n.translate(path, count: count) if I18n.exists?(path, count: count)
           end
 
-          name = Inflector.humanize(i18n_key)
-          name = Inflector.pluralize(name) if count && count > 1
+          name = Wordsmith::Inflector.humanize(i18n_key)
+          name = Wordsmith::Inflector.pluralize(name) if count && count > 1
           name
         end
 
@@ -41,7 +41,7 @@ module Jennifer
         # Presents key which be used to search any related to current class localization information.
         def i18n_key
           return @@i18n_key unless @@i18n_key.empty?
-          @@i18n_key = Inflector.underscore(Inflector.demodulize(to_s)).downcase
+          @@i18n_key = Wordsmith::Inflector.underscore(Wordsmith::Inflector.demodulize(to_s)).downcase
         end
 
         # Yields all ancestors until `Base`.
@@ -66,8 +66,8 @@ module Jennifer
       end
 
       # Delegates the call to `self.class`.
-      def human_attribute_name(attribute : String | Symbol)
-        self.class.human_attribute_name(attribute)
+      def human_attribute_name(name : String | Symbol)
+        self.class.human_attribute_name(name)
       end
 
       def class_name : String

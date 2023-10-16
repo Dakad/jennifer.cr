@@ -170,7 +170,7 @@ module Jennifer
         %}
       end
 
-      # Defines callbacks which are called after `Base.build` call.
+      # Defines callbacks which are called after `Base.new` call.
       macro after_initialize(*names)
         {%
           names.reduce(CALLBACKS[:initialize][:after]) do |array, name|
@@ -266,36 +266,36 @@ module Jennifer
         # :nodoc:
         CALLBACKS = {
           save: {
-            before: [] of String,
-            after: [] of String,
-            commit: [] of String,
-            rollback: [] of String
+            before:   [] of String,
+            after:    [] of String,
+            commit:   [] of String,
+            rollback: [] of String,
           },
           create: {
-            before: [] of String,
-            after: [] of String,
-            commit: [] of String,
-            rollback: [] of String
+            before:   [] of String,
+            after:    [] of String,
+            commit:   [] of String,
+            rollback: [] of String,
           },
           update: {
-            before: [] of String,
-            after: [] of String,
-            commit: [] of String,
-            rollback: [] of String
+            before:   [] of String,
+            after:    [] of String,
+            commit:   [] of String,
+            rollback: [] of String,
           },
           destroy: {
-            after: [] of String,
-            before: [] of String,
-            commit: [] of String,
-            rollback: [] of String
+            after:    [] of String,
+            before:   [] of String,
+            commit:   [] of String,
+            rollback: [] of String,
           },
           initialize: {
-            after: [] of String
+            after: [] of String,
           },
           validation: {
             before: [] of String,
-            after: [] of String
-          }
+            after:  [] of String,
+          },
         }
       end
 

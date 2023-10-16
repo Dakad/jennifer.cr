@@ -2,18 +2,18 @@ require "../spec_helper"
 
 class ModelWithIntName < Jennifer::Model::Base
   mapping({
-    id:   Primary32,
+    id:   Primary64,
     name: Int32,
   })
 end
 
 module SomeModule
   class SomeModel < Jennifer::Model::Base
-    mapping(id: Primary32)
+    mapping(id: Primary64)
   end
 
   class AnotherModel < Jennifer::Model::Base
-    mapping(id: Primary32)
+    mapping(id: Primary64)
 
     def self.table_prefix
       "custom_table_prefix_"
@@ -33,400 +33,6 @@ end
 
 describe Jennifer::Model::Base do
   generator = Jennifer::Adapter.default_adapter.sql_generator
-
-  describe "#changed?" do
-    it "returns true if at list one field was changed" do
-      c = Factory.build_contact
-      c.name = "new name"
-      c.changed?.should be_true
-    end
-
-    it "returns false if no one field was changed" do
-      Factory.build_contact.changed?.should be_false
-    end
-  end
-
-  describe "::primary" do
-    it "return criteria with primary key" do
-      c = Passport.primary
-      match_fields(c, table: "passports", field: "enn")
-    end
-  end
-
-  describe "::primary_field_name" do
-    it "returns name of custom primary field" do
-      Passport.primary_field_name.should eq("enn")
-    end
-
-    it "returns name of default primary field name" do
-      Contact.primary_field_name.should eq("id")
-    end
-  end
-
-  describe "#init_primary_field" do
-    it "sets primary field" do
-      c = Factory.build_contact
-      c.init_primary_field(1)
-      c.primary.should eq(1)
-    end
-
-    it "raises error if it is set" do
-      c = Factory.build_contact
-      c.init_primary_field(1)
-      expect_raises(Exception, "Primary field is already initialized") do
-        c.init_primary_field(1)
-      end
-    end
-  end
-
-  describe "#new_record?" do
-    it "returns true if primary field nil" do
-      Factory.build_contact.new_record?.should be_true
-    end
-
-    it "returns false if primary field is not nil" do
-      Factory.create_contact.new_record?.should be_false
-    end
-  end
-
-  describe "::create" do
-    it "doesn't raise exception if object is invalid" do
-      country = Country.create
-      country.should_not be_valid
-      country.id.should be_nil
-    end
-
-    context "without arguments" do
-      it "builds new object without any exception" do
-        c = ContactWithNotStrictMapping.create
-        c.id.should_not be_nil
-        c.name.should be_nil
-      end
-    end
-
-    context "from hash" do
-      context "with string keys" do
-        it "properly creates object" do
-          contact = Contact.create({"name" => "Deepthi", "age" => 18, "gender" => "female"})
-          contact.id.should_not be_nil
-          match_fields(contact, name: "Deepthi", age: 18, gender: "female")
-        end
-      end
-
-      context "with symbol keys" do
-        it "properly creates object" do
-          contact = Contact.create({:name => "Deepthi", :age => 18, :gender => "female"})
-          contact.id.should_not be_nil
-          match_fields(contact, name: "Deepthi", age: 18, gender: "female")
-        end
-      end
-    end
-
-    context "from named tuple" do
-      it "properly creates object" do
-        contact = Contact.create({name: "Deepthi", age: 18, gender: "female"})
-        contact.id.should_not be_nil
-        match_fields(contact, name: "Deepthi", age: 18, gender: "female")
-      end
-
-      it "allows splatted named tuple as well" do
-        contact = Contact.create(name: "Deepthi", age: 18, gender: "female")
-        contact.id.should_not be_nil
-        match_fields(contact, name: "Deepthi", age: 18, gender: "female")
-      end
-    end
-
-    context "strict mapping" do
-      it "raises exception if not all fields are described" do
-        Factory.create_contact
-        expect_raises(::Jennifer::BaseException) do
-          Contact.all.each_result_set do |rs|
-            begin
-              ContactWithNotAllFields.build(rs)
-            ensure
-              rs.read_to_end
-            end
-          end
-        end
-      end
-
-      it "raised exception includes query explanation" do
-        select_regexp = /[\S\s]*SELECT #{generator.quote_identifier("contacts")}\.\*/i
-        Factory.create_contact
-        expect_raises(::Jennifer::BaseException, select_regexp) do
-          Contact.all.each_result_set do |rs|
-            ContactWithNotAllFields.build(rs)
-          end
-        end
-      end
-
-      it "result set has no some field" do
-        OneFieldModel.create({} of String => Jennifer::DBAny)
-        error_message = "Column OneFieldModelWithExtraArgument.missing_field hasn't been found in the result set."
-        expect_raises(Jennifer::BaseException, error_message) do
-          OneFieldModelWithExtraArgument.all.to_a
-        end
-      end
-    end
-
-    context "non strict mapping" do
-      it "ignores all extra fields" do
-        ContactWithNotStrictMapping.create({name: "some name"})
-        model = ContactWithNotStrictMapping.all.last!
-        model.name.should eq("some name")
-      end
-    end
-
-    context "model has column aliases" do
-      it "correctly maps column aliases" do
-        a = Author.create(
-          name1: "Samply",
-          name2: "Examplary"
-        )
-
-        Author
-          .where { _first_name == "Samply" }
-          .first!
-          .id
-          .should eq(a.id)
-      end
-    end
-
-    context "with non-auto primary key" do
-      it do
-        NoteWithManualId.create(id: 1)
-        NoteWithManualId.all.where { _id == 1 }.exists?.should be_true
-      end
-    end
-  end
-
-  describe "::create!" do
-    it "raises exception if object is invalid" do
-      expect_raises(Jennifer::RecordInvalid) do
-        Country.create!
-      end
-    end
-
-    context "without arguments" do
-      it "builds new object without any exception" do
-        c = ContactWithNotStrictMapping.create!
-        c.id.should_not be_nil
-        c.name.should be_nil
-      end
-    end
-
-    context "from hash" do
-      context "with string keys" do
-        it "properly creates object" do
-          contact = Contact.create!({"name" => "Deepthi", "age" => 18, "gender" => "female"})
-          contact.id.should_not be_nil
-          match_fields(contact, name: "Deepthi", age: 18, gender: "female")
-        end
-      end
-
-      context "with symbol keys" do
-        it "properly creates object" do
-          contact = Contact.create!({:name => "Deepthi", :age => 18, :gender => "female"})
-          contact.id.should_not be_nil
-          match_fields(contact, name: "Deepthi", age: 18, gender: "female")
-        end
-      end
-    end
-
-    context "from named tuple" do
-      it "properly creates object" do
-        contact = Contact.create!({name: "Deepthi", age: 18, gender: "female"})
-        contact.id.should_not be_nil
-        match_fields(contact, name: "Deepthi", age: 18, gender: "female")
-      end
-
-      it "allows splatted named tuple as well" do
-        contact = Contact.create!(name: "Deepthi", age: 18, gender: "female")
-        contact.id.should_not be_nil
-        match_fields(contact, name: "Deepthi", age: 18, gender: "female")
-      end
-    end
-  end
-
-  describe "::build" do
-    context "without arguments" do
-      it "builds new object without any exception" do
-        p = Passport.build
-        p.enn.nil?.should be_true
-        p.contact_id.nil?.should be_true
-      end
-    end
-
-    context "from hash" do
-      context "with string keys" do
-        context "strict mapping" do
-          it "raises exception if some field can't be casted" do
-            error_message = "Column OneFieldModelWithExtraArgument.missing_field can't be casted from Nil to it's type - String"
-            expect_raises(Jennifer::BaseException, error_message) do
-              OneFieldModelWithExtraArgument.build({} of String => Jennifer::DBAny)
-            end
-          end
-        end
-
-        it "properly creates object" do
-          contact = Contact.build({"name" => "Deepthi", "age" => 18, "gender" => "female"})
-          match_fields(contact, name: "Deepthi", age: 18, gender: "female")
-        end
-      end
-
-      context "with symbol keys" do
-        it "properly creates object" do
-          contact = Contact.build({:name => "Deepthi", :age => 18, :gender => "female"})
-          match_fields(contact, name: "Deepthi", age: 18, gender: "female")
-        end
-      end
-
-      context "without arguments" do
-        it "allows one field models" do
-          OneFieldModel.build
-        end
-      end
-
-      context "given result set" do
-        it "allows one field models" do
-          model = OneFieldModel.create
-          is_executed = false
-          OneFieldModel.where { _id == model.id }.each_result_set do |rs|
-            OneFieldModel.build(rs).id.should eq(model.id)
-            is_executed = true
-          end
-          is_executed.should be_true
-        end
-      end
-    end
-
-    context "from named tuple" do
-      it "properly creates object" do
-        contact = Contact.build({name: "Deepthi", age: 18, gender: "female"})
-        match_fields(contact, name: "Deepthi", age: 18, gender: "female")
-      end
-
-      it "allows splatted named tuple as well" do
-        contact = Contact.build(name: "Deepthi", age: 18, gender: "female")
-        match_fields(contact, name: "Deepthi", age: 18, gender: "female")
-      end
-    end
-  end
-
-  describe "#save" do
-    it "saves new object to db" do
-      count = Contact.all.count
-      contact = Factory.build_contact
-      contact.save
-      Contact.all.count.should eq(count + 1)
-    end
-
-    context "updates existing object in db" do
-      it "stores changed fields to db" do
-        c = Factory.create_contact
-        c.name = "new name"
-        c.save
-        Contact.find!(c.id).name.should eq("new name")
-      end
-
-      it "returns true if record was saved" do
-        c = Factory.create_contact
-        c.id.nil?.should be_false
-        c.name = "new name"
-        c.save.should be_true
-        Contact.all.count.should eq(1)
-      end
-
-      it "returns true if record wasn't changed" do
-        Factory.create_address.save.should be_true
-        Address.all.count.should eq(1)
-      end
-
-      it "returns false if record wasn't saved" do
-        record = Factory.create_address
-        record.street = "invalid"
-        record.save.should be_false
-      end
-
-      it "calls after_save_callback" do
-        c = Factory.create_contact
-        c.name = "new name"
-        c.save
-        c.name_changed?.should be_false
-      end
-    end
-
-    context "when brakes unique index" do
-      it "raises exception" do
-        void_transaction do
-          Factory.create_address(street: "st. 2")
-          expect_raises(Jennifer::BaseException) do
-            Factory.create_address(street: "st. 2")
-          end
-        end
-      end
-    end
-
-    pair_only do
-      it "respects specified adapter" do
-        PairAddress.new.save
-        PairAddress.all.count.should eq(1)
-        Address.all.count.should eq(0)
-      end
-    end
-  end
-
-  describe "::table_name" do
-    it { Contact.table_name.should eq("contacts") }
-    it { ModelWithTablePrefix.table_name.should eq("custom_table_prefix_model_with_table_prefixes") }
-
-    it "returns specified name" do
-      ContactWithNotAllFields.table_name.should eq("contacts")
-    end
-
-    describe "STI" do
-      it { TwitterProfile.table_name.should eq("profiles") }
-    end
-
-    describe "inside of module" do
-      it { SomeModule::SomeModel.table_name.should eq("some_module_some_models") }
-      it { SomeModule::AnotherModel.table_name.should eq("custom_table_prefix_another_models") }
-    end
-  end
-
-  describe "::foreign_key_name" do
-    it { Contact.foreign_key_name.should eq("contact_id") }
-    it { ModelWithTablePrefix.foreign_key_name.should eq("custom_table_prefix_model_with_table_prefix_id") }
-
-    it "returns specified name" do
-      ContactWithNotAllFields.foreign_key_name.should eq("contact_id")
-    end
-
-    describe "STI" do
-      it { TwitterProfile.foreign_key_name.should eq("profile_id") }
-    end
-
-    describe "inside of module" do
-      it { SomeModule::SomeModel.foreign_key_name.should eq("some_module_some_model_id") }
-      it { SomeModule::AnotherModel.foreign_key_name.should eq("custom_table_prefix_another_model_id") }
-    end
-  end
-
-  describe "::c" do
-    it "creates criteria with given name" do
-      c = Contact.c("some_field")
-      c.is_a?(Jennifer::QueryBuilder::Criteria)
-      c.field.should eq("some_field")
-      c.table.should eq("contacts")
-      c.relation.should be_nil
-    end
-
-    it "creates criteria with given name and relation" do
-      c = Contact.c("some_field", "some_relation")
-      c.is_a?(Jennifer::QueryBuilder::Criteria)
-      match_fields(c, field: "some_field", table: "contacts", relation: "some_relation")
-    end
-  end
 
   describe "%scope" do
     context "with block" do
@@ -496,6 +102,593 @@ describe Jennifer::Model::Base do
     end
   end
 
+  describe ".primary" do
+    it "return criteria with primary key" do
+      c = Passport.primary
+      match_fields(c, table: "passports", field: "enn")
+    end
+  end
+
+  describe ".primary_field_name" do
+    it "returns name of custom primary field" do
+      Passport.primary_field_name.should eq("enn")
+    end
+
+    it "returns name of default primary field name" do
+      Contact.primary_field_name.should eq("id")
+    end
+  end
+
+  describe ".create" do
+    it "doesn't raise exception if object is invalid" do
+      country = Country.create
+      country.should_not be_valid
+      country.id.should be_nil
+    end
+
+    context "without arguments" do
+      it "builds new object without any exception" do
+        c = ContactWithNotStrictMapping.create
+        c.id.should_not be_nil
+        c.name.should be_nil
+      end
+
+      it "builds new object passing it to block" do
+        c = ContactWithNotStrictMapping.create(&.name = "John")
+        c.id.should_not be_nil
+        c.name.should eq("John")
+      end
+    end
+
+    context "from hash" do
+      context "with string keys" do
+        it "creates object" do
+          contact = Contact.create({"name" => "Deepthi", "age" => 18, "gender" => "female"})
+          contact.id.should_not be_nil
+          match_fields(contact, name: "Deepthi", age: 18, gender: "female")
+        end
+
+        it "builds new object passing it to block" do
+          c = Contact.create({"name" => "Deepthi", "age" => 18}) { |r| r.gender = "female" }
+          c.id.should_not be_nil
+          match_fields(c, name: "Deepthi", age: 18, gender: "female")
+        end
+      end
+
+      context "with symbol keys" do
+        it "creates object" do
+          contact = Contact.create({:name => "Deepthi", :age => 18, :gender => "female"})
+          contact.id.should_not be_nil
+          match_fields(contact, name: "Deepthi", age: 18, gender: "female")
+        end
+
+        it "builds new object passing it to block" do
+          c = Contact.create({:name => "Deepthi", :age => 18}) { |r| r.gender = "female" }
+          c.id.should_not be_nil
+          match_fields(c, name: "Deepthi", age: 18, gender: "female")
+        end
+      end
+    end
+
+    context "from named tuple" do
+      it "properly creates object" do
+        contact = Contact.create({name: "Deepthi", age: 18, gender: "female"})
+        contact.id.should_not be_nil
+        match_fields(contact, name: "Deepthi", age: 18, gender: "female")
+      end
+
+      it "allows splatted named tuple as well" do
+        contact = Contact.create(name: "Deepthi", age: 18, gender: "female")
+        contact.id.should_not be_nil
+        match_fields(contact, name: "Deepthi", age: 18, gender: "female")
+      end
+
+      it "builds new object passing it to block" do
+        c = Contact.create(name: "Deepthi", age: 18) { |r| r.gender = "female" }
+        c.id.should_not be_nil
+        match_fields(c, name: "Deepthi", age: 18, gender: "female")
+      end
+    end
+
+    context "strict mapping" do
+      it "raises exception if not all fields are described" do
+        Factory.create_contact
+        expect_raises(::Jennifer::BaseException) do
+          Contact.all.each_result_set do |rs|
+            begin
+              ContactWithNotAllFields.build(rs)
+            ensure
+              rs.read_to_end
+            end
+          end
+        end
+      end
+
+      it "raised exception includes query explanation" do
+        select_regexp = /[\S\s]*SELECT #{generator.quote_identifier("contacts")}\.\*/i
+        Factory.create_contact
+        expect_raises(::Jennifer::BaseException, select_regexp) do
+          Contact.all.each_result_set do |rs|
+            ContactWithNotAllFields.build(rs)
+          end
+        end
+      end
+
+      it "result set has no some field" do
+        OneFieldModel.create({} of String => Jennifer::DBAny)
+        error_message = "Column OneFieldModelWithExtraArgument.missing_field hasn't been found in the result set."
+        expect_raises(Jennifer::BaseException, error_message) do
+          OneFieldModelWithExtraArgument.all.to_a
+        end
+      end
+    end
+
+    context "non strict mapping" do
+      it "ignores all extra fields" do
+        ContactWithNotStrictMapping.create({name: "some name"})
+        model = ContactWithNotStrictMapping.all.last!
+        model.name.should eq("some name")
+      end
+    end
+
+    context "model has column aliases" do
+      it "correctly maps column aliases" do
+        a = Author.create(name1: "Samply", name2: "Examplary")
+
+        Author.all.find_by!({:first_name => "Samply"}).id.should eq(a.id)
+      end
+    end
+
+    context "with non-auto primary key" do
+      it do
+        NoteWithManualId.create(id: 1) # ?
+        NoteWithManualId.all.where { _id == 1 }.exists?.should be_true
+      end
+    end
+  end
+
+  describe ".create!" do
+    it "raises exception if object is invalid" do
+      expect_raises(Jennifer::RecordInvalid) do
+        Country.create!
+      end
+    end
+
+    context "without arguments" do
+      it "builds new object without any exception" do
+        c = ContactWithNotStrictMapping.create!
+        c.id.should_not be_nil
+        c.name.should be_nil
+      end
+
+      it "builds new object passing it to block" do
+        c = ContactWithNotStrictMapping.create!(&.name = "John")
+        c.id.should_not be_nil
+        c.name.should eq("John")
+      end
+    end
+
+    context "from hash" do
+      context "with string keys" do
+        it "properly creates object" do
+          contact = Contact.create!({"name" => "Deepthi", "age" => 18, "gender" => "female"})
+          contact.id.should_not be_nil
+          match_fields(contact, name: "Deepthi", age: 18, gender: "female")
+        end
+
+        it "builds new object passing it to block" do
+          c = Contact.create!({"name" => "Deepthi", "age" => 18}) { |r| r.gender = "female" }
+          c.id.should_not be_nil
+          match_fields(c, name: "Deepthi", age: 18, gender: "female")
+        end
+      end
+
+      context "with symbol keys" do
+        it "properly creates object" do
+          contact = Contact.create!({:name => "Deepthi", :age => 18, :gender => "female"})
+          contact.id.should_not be_nil
+          match_fields(contact, name: "Deepthi", age: 18, gender: "female")
+        end
+
+        it "builds new object passing it to block" do
+          c = Contact.create!({:name => "Deepthi", :age => 18}) { |r| r.gender = "female" }
+          c.id.should_not be_nil
+          match_fields(c, name: "Deepthi", age: 18, gender: "female")
+        end
+      end
+    end
+
+    context "from named tuple" do
+      it "properly creates object" do
+        contact = Contact.create!({name: "Deepthi", age: 18, gender: "female"})
+        contact.id.should_not be_nil
+        match_fields(contact, name: "Deepthi", age: 18, gender: "female")
+      end
+
+      it "allows splatted named tuple as well" do
+        contact = Contact.create!(name: "Deepthi", age: 18, gender: "female")
+        contact.id.should_not be_nil
+        match_fields(contact, name: "Deepthi", age: 18, gender: "female")
+      end
+
+      it "builds new object passing it to block" do
+        c = Contact.create!(name: "Deepthi", age: 18) { |r| r.gender = "female" }
+        c.id.should_not be_nil
+        match_fields(c, name: "Deepthi", age: 18, gender: "female")
+      end
+    end
+  end
+
+  describe ".build" do
+    context "without arguments" do
+      it "builds new object without any exception" do
+        p = Passport.build
+        p.enn.nil?.should be_true
+        p.contact_id.nil?.should be_true
+      end
+    end
+
+    context "from hash" do
+      context "with string keys" do
+        context "strict mapping" do
+          it "raises exception if some field can't be casted" do
+            error_message = "Column OneFieldModelWithExtraArgument.missing_field can't be casted from Nil to it's type - String"
+            expect_raises(Jennifer::BaseException, error_message) do
+              OneFieldModelWithExtraArgument.build({} of String => Jennifer::DBAny)
+            end
+          end
+        end
+
+        it "properly creates object" do
+          contact = Contact.build({"name" => "Deepthi", "age" => 18, "gender" => "female"})
+          match_fields(contact, name: "Deepthi", age: 18, gender: "female")
+        end
+      end
+
+      context "with symbol keys" do
+        it "properly creates object" do
+          contact = Contact.build({:name => "Deepthi", :age => 18, :gender => "female"})
+          match_fields(contact, name: "Deepthi", age: 18, gender: "female")
+        end
+      end
+
+      context "without arguments" do
+        it "allows one field models" do
+          OneFieldModel.build
+        end
+      end
+
+      context "given result set" do
+        it "allows one field models" do
+          model = OneFieldModel.create
+          is_executed = false
+          OneFieldModel.where { _id == model.id }.each_result_set do |rs|
+            OneFieldModel.build(rs).id.should eq(model.id)
+            is_executed = true
+          end
+          is_executed.should be_true
+        end
+      end
+    end
+
+    context "from named tuple" do
+      it "properly creates object" do
+        contact = Contact.build({name: "Deepthi", age: 18, gender: "female"})
+        match_fields(contact, name: "Deepthi", age: 18, gender: "female")
+      end
+
+      it "allows splatted named tuple as well" do
+        contact = Contact.build(name: "Deepthi", age: 18, gender: "female")
+        match_fields(contact, name: "Deepthi", age: 18, gender: "female")
+      end
+    end
+  end
+
+  describe ".table_name" do
+    it { Contact.table_name.should eq("contacts") }
+    it { ModelWithTablePrefix.table_name.should eq("custom_table_prefix_model_with_table_prefixes") }
+
+    it "returns specified name" do
+      ContactWithNotAllFields.table_name.should eq("contacts")
+    end
+
+    describe "STI" do
+      it { TwitterProfile.table_name.should eq("profiles") }
+    end
+
+    describe "inside of module" do
+      it { SomeModule::SomeModel.table_name.should eq("some_module_some_models") }
+      it { SomeModule::AnotherModel.table_name.should eq("custom_table_prefix_another_models") }
+    end
+  end
+
+  describe ".foreign_key_name" do
+    it { Contact.foreign_key_name.should eq("contact_id") }
+    it { ModelWithTablePrefix.foreign_key_name.should eq("custom_table_prefix_model_with_table_prefix_id") }
+
+    it "returns specified name" do
+      ContactWithNotAllFields.foreign_key_name.should eq("contact_id")
+    end
+
+    describe "STI" do
+      it { TwitterProfile.foreign_key_name.should eq("profile_id") }
+    end
+
+    describe "inside of module" do
+      it { SomeModule::SomeModel.foreign_key_name.should eq("some_module_some_model_id") }
+      it { SomeModule::AnotherModel.foreign_key_name.should eq("custom_table_prefix_another_model_id") }
+    end
+  end
+
+  describe ".c" do
+    it "creates criteria with given name" do
+      c = Contact.c("some_field")
+      c.is_a?(Jennifer::QueryBuilder::Criteria)
+      c.field.should eq("some_field")
+      c.table.should eq("contacts")
+      c.relation.should be_nil
+    end
+
+    it "creates criteria with given name and relation" do
+      c = Contact.c("some_field", "some_relation")
+      c.is_a?(Jennifer::QueryBuilder::Criteria)
+      match_fields(c, field: "some_field", table: "contacts", relation: "some_relation")
+    end
+  end
+
+  describe ".transaction" do
+    it "allow to start transaction" do
+      void_transaction do
+        expect_raises(DivisionByZeroError) do
+          Contact.transaction do
+            Factory.create_contact
+            1 // 0
+          end
+        end
+        Contact.all.count.should eq(0)
+      end
+    end
+  end
+
+  describe ".all" do
+    it "returns empty query" do
+      Contact.all.empty?.should be_true
+    end
+
+    pair_only do
+      it "creates query with right adapter" do
+        PairAddress.all.@adapter.should eq(PAIR_ADAPTER)
+      end
+    end
+  end
+
+  describe ".destroy" do
+    it "deletes from db by given ids" do
+      c = [] of Int64?
+      3.times { c << Factory.create_contact.id }
+      Contact.destroy(c[0..1])
+      Contact.all.count.should eq(1)
+    end
+
+    it "invokes destroy callbacks" do
+      address = Factory.create_address
+      count = Address.destroy_counter
+      Address.destroy([address.id])
+      (Address.destroy_counter - count).should eq(1)
+    end
+  end
+
+  describe ".delete" do
+    it "deletes from db by given ids" do
+      c = [] of Int64?
+      3.times { c << Factory.create_contact.id }
+      Contact.delete(c[0..1])
+      Contact.all.count.should eq(1)
+    end
+
+    it "doesn't invoke destroy callbacks" do
+      address = Factory.create_address
+      count = Address.destroy_counter
+      Address.delete([address.id])
+      Address.destroy_counter.should eq(count)
+    end
+  end
+
+  describe ".models" do
+    it "returns all model classes" do
+      models = Jennifer::Model::Base.models
+      models.is_a?(Array).should be_true
+      # I tired from modifying this each time new model is added
+      (models.size > 6).should be_true
+    end
+
+    it { Contact.models.empty?.should be_true }
+    it { Profile.models.should eq([FacebookProfile, TwitterProfile]) }
+  end
+
+  describe ".import" do
+    argument_regex = db_specific(mysql: ->{ /\(\?/ }, postgres: ->{ /\(\$\d/ })
+    amount = db_specific(mysql: ->{ 3641 }, postgres: ->{ 3277 })
+
+    context "with autoincrementable primary key" do
+      context "when count of fields doesn't exceed limit" do
+        it "imports objects by " do
+          objects = Factory.build_contact(amount - 1)
+
+          Contact.all.count.should eq(0)
+          Contact.import(objects)
+          query_log[1][:query].to_s.should match(argument_regex)
+          Contact.all.count.should eq(amount - 1)
+        end
+      end
+
+      context "when count of fields exceeds limit" do
+        it "imports objects by " do
+          objects = Factory.build_contact(amount)
+
+          Contact.all.count.should eq(0)
+          Contact.import(objects)
+          query_log[1][:query].to_s.should_not match(argument_regex)
+          Contact.all.count.should eq(amount)
+        end
+      end
+
+      # it "sets ids to all given objects" do
+      #   void_transaction do
+      #     objects = Factory.build_contact(2)
+      #     new_collection = Contact.import(objects)
+      #     objects.should eq(new_collection)
+      #     objects[0].id.nil?.should be_false
+      #     objects[1].id.nil?.should be_false
+      #   end
+      # end
+    end
+
+    context "with custom primary key" do
+      it "imports objects" do
+        objects = [Factory.build_address(enn: "qwer"), Factory.build_address(enn: "zxcc")]
+        objects.each { |o| o.created_at = o.updated_at = Time.local }
+        Address.import(objects)
+        Address.all.count.should eq(2)
+      end
+    end
+  end
+
+  describe ".upsert" do
+    it "do nothing on conflict when inserting" do
+      contact = Factory.create_contact(description: "unique", age: 23)
+
+      c1 = Factory.build_contact(age: 13, description: "unique")
+      c2 = Factory.build_contact(age: 31, description: "not unique")
+      Contact.upsert([c1, c2])
+      Contact.all.pluck(:age).should eq([contact.age, c2.age])
+    end
+
+    it "treats given hash as on conflict definition" do
+      Factory.create_contact(description: "unique", age: 23)
+
+      c1 = Factory.build_contact(age: 13, description: "unique")
+      c2 = Factory.build_contact(age: 31, description: "not unique")
+      Contact.upsert([c1, c2], %w[description]) do
+        {:description => concat_ws(" ", values(:description), sql("'updated'", false))}
+      end
+      Contact.all.order(id: :asc).pluck(:description).should eq(["#{c1.description} updated", c2.description])
+    end
+  end
+
+  describe ".actual_table_field_count" do
+    it "returns count of fields that has corresponding db table" do
+      Address.actual_table_field_count.should eq(7)
+    end
+
+    pair_only do
+      it "respects connection" do
+        PairAddress.actual_table_field_count.should eq(4)
+      end
+    end
+  end
+
+  describe "#changed?" do
+    it "returns true if at list one field was changed" do
+      c = Factory.build_contact
+      c.name = "new name"
+      c.changed?.should be_true
+    end
+
+    it "returns false if no one field was changed" do
+      Factory.build_contact.changed?.should be_false
+    end
+  end
+
+  describe "#init_primary_field" do
+    it "sets primary field" do
+      c = Factory.build_contact
+      c.init_primary_field(1)
+      c.primary.should eq(1)
+    end
+
+    it "raises error if it is set" do
+      c = Factory.build_contact
+      c.init_primary_field(1)
+      expect_raises(Exception, "Primary field is already initialized") do
+        c.init_primary_field(1)
+      end
+    end
+  end
+
+  describe "#new_record?" do
+    it "returns true if primary field nil" do
+      Factory.build_contact.new_record?.should be_true
+    end
+
+    it "returns false if primary field is not nil" do
+      Factory.create_contact.new_record?.should be_false
+    end
+  end
+
+  describe "#save" do
+    it "saves new object to db" do
+      count = Contact.all.count
+      contact = Factory.build_contact
+      contact.save
+      Contact.all.count.should eq(count + 1)
+    end
+
+    context "updates existing object in db" do
+      it "stores changed fields to db" do
+        c = Factory.create_contact
+        c.name = "new name"
+        c.save
+        Contact.find!(c.id).name.should eq("new name")
+      end
+
+      it "returns true if record was saved" do
+        c = Factory.create_contact
+        c.id.nil?.should be_false
+        c.name = "new name"
+        c.save.should be_true
+        Contact.all.count.should eq(1)
+      end
+
+      it "returns true if record wasn't changed" do
+        Factory.create_address.save.should be_true
+        Address.all.count.should eq(1)
+      end
+
+      it "returns false if record wasn't saved" do
+        record = Factory.create_address
+        record.street = "invalid"
+        record.save.should be_false
+      end
+
+      it "calls after_save_callback" do
+        c = Factory.create_contact
+        c.name = "new name"
+        c.save
+        c.name_changed?.should be_false
+      end
+    end
+
+    context "when brakes unique index" do
+      it "raises exception" do
+        void_transaction do
+          Factory.create_address(street: "st. 2")
+          expect_raises(Jennifer::BaseException) do
+            Factory.create_address(street: "st. 2")
+          end
+        end
+      end
+    end
+
+    pair_only do
+      it "respects specified adapter" do
+        PairAddress.new.save
+        PairAddress.all.count.should eq(1)
+        Address.all.count.should eq(0)
+      end
+    end
+  end
+
   describe "#destroy" do
     it "deletes from db" do
       contact = Factory.create_contact
@@ -557,153 +750,6 @@ describe Jennifer::Model::Base do
       Factory.create_contact.with_lock do
         query_log.last[:query].to_s.should match(/FOR UPDATE/)
       end
-    end
-  end
-
-  describe "::transaction" do
-    it "allow to start transaction" do
-      void_transaction do
-        expect_raises(DivisionByZeroError) do
-          Contact.transaction do
-            Factory.create_contact
-            1 // 0
-          end
-        end
-        Contact.all.count.should eq(0)
-      end
-    end
-  end
-
-  describe "::where" do
-    it "returns query" do
-      res = Contact.where { _id == 1 }
-      res.should be_a(::Jennifer::QueryBuilder::ModelQuery(Contact))
-    end
-  end
-
-  describe "::all" do
-    it "returns empty query" do
-      Contact.all.empty?.should be_true
-    end
-
-    pair_only do
-      it "creates query with right adapter" do
-        PairAddress.all.@adapter.should eq(PAIR_ADAPTER)
-      end
-    end
-  end
-
-  describe "::destroy" do
-    it "deletes from db by given ids" do
-      c = [] of Int32?
-      3.times { c << Factory.create_contact.id }
-      Contact.destroy(c[0..1])
-      Contact.all.count.should eq(1)
-    end
-
-    it "invokes destroy callbacks" do
-      address = Factory.create_address
-      count = Address.destroy_counter
-      Address.destroy([address.id])
-      (Address.destroy_counter - count).should eq(1)
-    end
-  end
-
-  describe "::delete" do
-    it "deletes from db by given ids" do
-      c = [] of Int32?
-      3.times { c << Factory.create_contact.id }
-      Contact.delete(c[0..1])
-      Contact.all.count.should eq(1)
-    end
-
-    it "doesn't invoke destroy callbacks" do
-      address = Factory.create_address
-      count = Address.destroy_counter
-      Address.delete([address.id])
-      Address.destroy_counter.should eq(count)
-    end
-  end
-
-  describe "::models" do
-    it "returns all model classes" do
-      models = Jennifer::Model::Base.models
-      models.is_a?(Array).should be_true
-      # I tired from modifying this each time new model is added
-      (models.size > 6).should be_true
-    end
-
-    it { Contact.models.empty?.should be_true }
-    it { Profile.models.should eq([FacebookProfile, TwitterProfile]) }
-  end
-
-  describe "::import" do
-    argument_regex = db_specific(mysql: ->{ /\(\?/ }, postgres: ->{ /\(\$\d/ })
-    amount = db_specific(mysql: ->{ 3641 }, postgres: ->{ 3277 })
-
-    context "with autoincrementable primary key" do
-      context "when count of fields doesn't exceed limit" do
-        it "imports objects by " do
-          objects = Factory.build_contact(amount - 1)
-
-          Contact.all.count.should eq(0)
-          Contact.import(objects)
-          query_log[1][:query].to_s.should match(argument_regex)
-          Contact.all.count.should eq(amount - 1)
-        end
-      end
-
-      context "when count of fields exceeds limit" do
-        it "imports objects by " do
-          objects = Factory.build_contact(amount)
-
-          Contact.all.count.should eq(0)
-          Contact.import(objects)
-          query_log[1][:query].to_s.should_not match(argument_regex)
-          Contact.all.count.should eq(amount)
-        end
-      end
-
-      # it "sets ids to all given objects" do
-      #   void_transaction do
-      #     objects = Factory.build_contact(2)
-      #     new_collection = Contact.import(objects)
-      #     objects.should eq(new_collection)
-      #     objects[0].id.nil?.should be_false
-      #     objects[1].id.nil?.should be_false
-      #   end
-      # end
-    end
-
-    context "with custom primary key" do
-      it "imports objects" do
-        objects = [Factory.build_address(enn: "qwer"), Factory.build_address(enn: "zxcc")]
-        objects.each { |o| o.created_at = o.updated_at = Time.local }
-        Address.import(objects)
-        Address.all.count.should eq(2)
-      end
-    end
-  end
-
-  describe "::upsert" do
-    it "do nothing on conflict when inserting" do
-      contact = Factory.create_contact(description: "unique", age: 23)
-
-      c1 = Factory.build_contact(age: 13, description: "unique")
-      c2 = Factory.build_contact(age: 31, description: "not unique")
-      Contact.upsert([c1, c2])
-      Contact.all.pluck(:age).should eq([contact.age, c2.age])
-    end
-
-    it "treats given hash as on conflict definition" do
-      Factory.create_contact(description: "unique", age: 23)
-
-      c1 = Factory.build_contact(age: 13, description: "unique")
-      c2 = Factory.build_contact(age: 31, description: "not unique")
-      Contact.upsert([c1, c2], %w[description]) do
-        {:description => concat_ws(" ", values(:description), sql("'updated'", false))}
-      end
-      Contact.all.order(id: :asc).pluck(:description).should eq(["#{c1.description} updated", c2.description])
     end
   end
 
@@ -838,20 +884,9 @@ describe Jennifer::Model::Base do
     end
   end
 
-  describe "::actual_table_field_count" do
-    it "returns count of fields that has corresponding db table" do
-      Address.actual_table_field_count.should eq(7)
-    end
-
-    pair_only do
-      it "respects connection" do
-        PairAddress.actual_table_field_count.should eq(4)
-      end
-    end
-  end
-
   describe "#to_json" do
     it "works with all possible column types" do
+      puts AllTypeModel.new.to_json
       AllTypeModel.new.to_json.should eq(
         db_specific(
           mysql: ->do
@@ -867,7 +902,7 @@ describe Jennifer::Model::Base do
             "double_f":null,"string_f":null,"varchar_f":null,"text_f":null,"timestamp_f":null,
             "date_time_f":null,"date_f":null,"json_f":null,"decimal_f":null,"oid_f":null,"char_f":null,
             "uuid_f":null,"timestamptz_f":null,"bytea_f":null,"jsonb_f":null,"xml_f":null,"point_f":null,
-            "lseg_f":null,"path_f":null,"box_f":null}
+            "lseg_f":null,"path_f":null,"box_f":null,"array_int32_f":null,"array_string_f":null,"array_time_f":null}
             JSON
           end
         ).gsub('\n', "")

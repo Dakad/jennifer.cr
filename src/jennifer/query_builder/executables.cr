@@ -66,6 +66,28 @@ module Jennifer
         result
       end
 
+      # Finds the first record matching the specified conditions.
+      #
+      # If no record is found, returns `nil`.
+      #
+      # ```
+      # Jennifer::Query["contacts"].find_by({:id => -1}) # => nil
+      # Jennifer::Query["contacts"].find_by({:id => 1})  # => Jennifer::Record
+      # ```
+      def find_by(conditions : Hash(Symbol | String, _))
+        where(conditions).first
+      end
+
+      # Like `#find_by`, except that if no record is found, raises an `Jennifer::RecordNotFound` error.
+      #
+      # ```
+      # Jennifer::Query["contacts"].find_by!({:id => -1}) # Jennifer::RecordNotFound
+      # Jennifer::Query["contacts"].find_by!({:id => 1})  # => Jennifer::Record
+      # ```
+      def find_by!(conditions : Hash(Symbol | String, _))
+        where(conditions).first!
+      end
+
       # Returns array of given field values.
       #
       # This method allows you load only those fields you need without loading records.
@@ -313,9 +335,9 @@ module Jennifer
 
       # Returns array of record ids.
       #
-      # This method requires model to have field `id : Int32`.
+      # This method requires model to have field named `id` with type `Int64`.
       def ids
-        pluck(:id).map(&.as(Int32))
+        pluck(:id).map(&.as(Int64))
       end
 
       # Yields each matched record to a block.
@@ -391,13 +413,13 @@ module Jennifer
         end
         request = clone.reorder.limit(batch_size)
 
-        records = request.offset(start * batch_size).to_a
+        records = request.offset(start.to_i64 * batch_size.to_i64).to_a
         while !records.empty?
           records_size = records.size
           yield records
           break if records_size < batch_size
           start += 1
-          records = request.offset(start * batch_size).to_a
+          records = request.offset(start.to_i64 * batch_size.to_i64).to_a
         end
       end
 

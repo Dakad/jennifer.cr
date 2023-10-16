@@ -4,6 +4,16 @@ describe Jennifer::Model::Authentication do
   describe "%with_authentication" do
     context "with default field names" do
       describe "validations" do
+        it "generates digest if password was set using constructor" do
+          user = User.new({
+            :name                  => "John",
+            :password              => "password",
+            :password_confirmation => "password",
+            :email                 => "test@gmail.com",
+          })
+          user.valid?.should be_true
+        end
+
         it do
           user = Factory.build_user
           user.password = "1" * 72
@@ -27,7 +37,7 @@ describe Jennifer::Model::Authentication do
         end
       end
 
-      describe "::password_digest_cost" do
+      describe ".password_digest_cost" do
         pending { User.password_digest_cost.should eq(Crypto::Bcrypt::DEFAULT_COST) }
       end
 

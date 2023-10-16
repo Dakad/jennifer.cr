@@ -12,14 +12,14 @@ module Jennifer
     # ```
     # class AddMainFlagToContacts < Jennifer::Migration::Base
     #   def up
-    #     create_table(::contacts) do |t|
+    #     create_table(:contacts) do |t|
     #       t.string :name
     #       t.string :number, {:null => false}
     #     end
     #   end
     #
     #   def down
-    #     drop_table(::contacts)
+    #     drop_table(:contacts)
     #   end
     # end
     # ```
@@ -45,13 +45,13 @@ module Jennifer
     #
     # class AddMainFlagToContacts < Jennifer::Migration::Base
     #   def up
-    #     change_table(::contacts) do |t|
+    #     change_table(:contacts) do |t|
     #       t.add_column :main, :bool, default: true
     #     end
     #   end
     #
     #   def down
-    #     change_table(::contacts) do |t|
+    #     change_table(:contacts) do |t|
     #       t.drop_column :main if column_exists?(:contacts, :main)
     #     end
     #   end
@@ -68,25 +68,25 @@ module Jennifer
     #
     # class AddMainFlagToContacts < Jennifer::Migration::Base
     #   def up
-    #     change_table(::contacts) do |t|
+    #     change_table(:contacts) do |t|
     #       t.add_column :main, :bool, default: true
     #     end
     #   end
     #
     #   def after_up_failure
-    #     change_table(::contacts) do |t|
+    #     change_table(:contacts) do |t|
     #       t.drop_column :main if column_exists?(:contacts, :main)
     #     end
     #   end
     #
     #   def down
-    #     change_table(::contacts) do |t|
+    #     change_table(:contacts) do |t|
     #       t.drop_column :main
     #     end
     #   end
     #
     #   def after_down_failure
-    #     change_table(::contacts) do |t|
+    #     change_table(:contacts) do |t|
     #       t.add_column :main, :bool, default: true unless column_exists?(:contacts, :main)
     #     end
     #   end
@@ -226,7 +226,7 @@ module Jennifer
       # For more details about new  table definition see `TableBuilder::CreateTable`.
       def create_table(name : String | Symbol, id : Bool = true)
         tb = TableBuilder::CreateTable.new(adapter, name)
-        tb.integer(:id, {:primary => true, :auto_increment => true}) if id
+        tb.bigint(:id, {:primary => true, :auto_increment => true}) if id
         yield tb
         process_builder(tb)
       end
@@ -241,8 +241,8 @@ module Jennifer
       # ```
       def create_join_table(table1 : String | Symbol, table2 : String | Symbol, table_name : String? = nil)
         create_table(table_name || adapter.class.join_table_name(table1, table2), false) do |tb|
-          tb.integer(Inflector.foreign_key(Inflector.singularize(table1.to_s)))
-          tb.integer(Inflector.foreign_key(Inflector.singularize(table2.to_s)))
+          tb.bigint(Wordsmith::Inflector.foreign_key(Wordsmith::Inflector.singularize(table1.to_s)))
+          tb.bigint(Wordsmith::Inflector.foreign_key(Wordsmith::Inflector.singularize(table2.to_s)))
           yield tb
         end
       end
@@ -522,7 +522,7 @@ module Jennifer
       #
       # Arguments:
       # - *column* - the foreign key column name on current_table; defaults to
-      # `Inflector.foreign_key(Inflector.singularize(to_table));
+      # `Wordsmith::Inflector.foreign_key(Wordsmith::Inflector.singularize(to_table));
       # - *primary_key* - the primary key column name on *to_table*. Defaults to `"id"`;
       # - *name* - the constraint name. Defaults to `"fc_cr_<identifier>".
       #

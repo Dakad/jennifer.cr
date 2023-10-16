@@ -68,19 +68,22 @@ module Jennifer
         #
         # Available options are (none of these exists by default):
         # - `:array` - creates and array of given type;
-        # - `:serial` - makes column `SERIAL`;
-        # - `:sql_type` - allow to specify custom SQL data type;
         # - `:size` - requests a maximum column length; e.g. this is a number of characters in `string` column and
         # number of bytes for `text` or `integer`;
         # - `:null` - allows or disallows `NULL` values;
         # - `:primary` - adds primary key constraint to the column; ATM only one field may be a primary key;
         # - `:default` - the column's default value;
-        # - `:auto_increment` - add autoincrement to the column.
+        # - `:auto_increment` - add autoincrement to the column;
+        # - `:serial` - makes column `SERIAL`;
+        # - `:sql_type` - allow to specify custom SQL data type (use this only when really required);
+        # - `:as` - specify query for generated column;
+        # - `:
         #
         # ```
         # add_column :picture, :blob
         # add_column :status, :string, {:size => 20, :default => "draft", :null => false}
         # add_column :skills, :text, {:array => true}
+        # add_column :full_name, :string, {:generated => true, :as => "CONCAT(first_name, ' ', last_name)"}
         # ```
         def add_column(name : String | Symbol, type : Symbol? = nil,
                        options : Hash(Symbol, AAllowedTypes) = DbOptions.new)
@@ -96,7 +99,7 @@ module Jennifer
 
         # Adds a reference.
         #
-        # The reference column is an `integer` by default, *type* argument can be used to specify a different type.
+        # The reference column is an `bigint` by default, *type* argument can be used to specify a different type.
         #
         # If *polymorphic* option is `true` - additional string field `"#{name}_type"` is created and foreign key is
         # not added.
@@ -106,11 +109,11 @@ module Jennifer
         #
         # ```
         # add_reference :user
-        # add_reference :order, :bigint
+        # add_reference :order, :integer
         # add_reference :taggable, {:polymorphic => true}
         # ```
-        def add_reference(name, type : Symbol = :integer, options : Hash(Symbol, AAllowedTypes) = DbOptions.new)
-          column = Inflector.foreign_key(name)
+        def add_reference(name, type : Symbol = :bigint, options : Hash(Symbol, AAllowedTypes) = DbOptions.new)
+          column = Wordsmith::Inflector.foreign_key(name)
           is_null = options.has_key?(:null) ? options[:null] : true
           field_internal_type = options.has_key?(:sql_type) ? nil : type
 
@@ -119,7 +122,7 @@ module Jennifer
             add_column("#{name}_type", :string, {:null => is_null})
           else
             add_foreign_key(
-              (options[:to_table]? || Inflector.pluralize(name)).as(String | Symbol),
+              (options[:to_table]? || Wordsmith::Inflector.pluralize(name)).as(String | Symbol),
               options[:column]?.as(String | Symbol?),
               options[:primary_key]?.as(String | Symbol?),
               options[:key_name]?.as(String?),
@@ -135,7 +138,7 @@ module Jennifer
         # *options* can include `:polymorphic`, `:to_table` and `:column` options. For more details see
         # `#add_reference`.
         def drop_reference(name, options : Hash(Symbol, AAllowedTypes) = DbOptions.new)
-          column = Inflector.foreign_key(name)
+          column = Wordsmith::Inflector.foreign_key(name)
           if options[:polymorphic]?
             drop_column("#{name}_type")
             drop_column(column)
@@ -143,7 +146,7 @@ module Jennifer
             @commands << DropReference.new(
               @adapter,
               @name,
-              (options[:to_table]? || Inflector.pluralize(name)).to_s,
+              (options[:to_table]? || Wordsmith::Inflector.pluralize(name)).to_s,
               options[:column]?.as(String | Symbol?)
             )
           end

@@ -66,7 +66,7 @@ module Jennifer
       rescue e : BaseException
         BadQuery.prepend_information(e, query, args)
         raise e
-      rescue e : DB::Error
+      rescue e : DB::Error | TypeCastError
         raise e
       rescue e : Exception
         raise BadQuery.new(e.message, query, args)
@@ -77,7 +77,7 @@ module Jennifer
       rescue e : BaseException
         BadQuery.prepend_information(e, query, args)
         raise e
-      rescue e : DB::Error
+      rescue e : DB::Error | TypeCastError
         raise e
       rescue e : Exception
         raise BadQuery.new(e.message, query, args)
@@ -88,7 +88,7 @@ module Jennifer
       rescue e : BaseException
         BadQuery.prepend_information(e, query, args)
         raise e
-      rescue e : DB::Error
+      rescue e : DB::Error | TypeCastError
         raise e
       rescue e : Exception
         raise BadQuery.new(e.message, query, args)
@@ -111,7 +111,7 @@ module Jennifer
       end
 
       def count(query : QueryBuilder::Query)
-        scalar(*parse_query(sql_generator.count(query), query.sql_args)).as(Int64).to_i
+        scalar(*parse_query(sql_generator.count(query), query.sql_args)).as(Int64)
       end
 
       def bulk_insert(collection : Array(Model::Base))
@@ -208,6 +208,10 @@ module Jennifer
         sql_generator.parse_query(q)
       end
 
+      def coerce_database_value(value, target_class)
+        value
+      end
+
       def max_bind_vars_count
         Config.instance.max_bind_vars_count || self.class.default_max_bind_vars_count
       end
@@ -284,7 +288,6 @@ module Jennifer
         return if table_exists?(Migration::Version.table_name)
 
         tb = Migration::TableBuilder::CreateTable.new(self, Migration::Version.table_name)
-        tb.integer(:id, {:primary => true, :auto_increment => true})
         tb.string(:version, {:size => 17, :null => false})
         tb.process
       end

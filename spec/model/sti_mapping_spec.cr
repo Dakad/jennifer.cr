@@ -2,7 +2,7 @@ require "../spec_helper"
 
 class SimplifiedProfile < ApplicationRecord
   mapping({
-    id:   Primary32,
+    id:   Primary64,
     type: String,
   }, false)
 end
@@ -29,8 +29,8 @@ describe Jennifer::Model::STIMapping do
       it "copies data from superclass" do
         id = FacebookProfile::COLUMNS_METADATA[:id]
         id.is_a?(NamedTuple).should be_true
-        id[:type].should eq(Int32)
-        id[:parsed_type].should eq("Int32?")
+        id[:type].should eq(Int64?)
+        id[:parsed_type].should eq("::Union(Int64, ::Nil)")
       end
 
       it "copies column aliases fro superclass" do
@@ -41,7 +41,7 @@ describe Jennifer::Model::STIMapping do
       end
     end
 
-    describe "::columns_tuple" do
+    describe ".columns_tuple" do
       it "returns named tuple mith column metedata" do
         metadata = FacebookProfile.columns_tuple
         metadata.is_a?(NamedTuple).should be_true
@@ -130,14 +130,44 @@ describe Jennifer::Model::STIMapping do
 
     context "hash" do
       it "properly loads from hash" do
-        f = FacebookProfile.build({:login => "asd", :uid => "uid"})
+        f = FacebookProfile.new({:login => "asd", :uid => "uid"})
         f.type.should eq("FacebookProfile")
         f.login.should eq("asd")
         f.uid.should eq("uid")
       end
 
+      it "builds proper subclass from symbol hash" do
+        f = Profile.new({:login => "asd", :uid => "uid", :type => "FacebookProfile"})
+        f.should be_a(FacebookProfile)
+
+        f = f.as(FacebookProfile)
+        f.type.should eq("FacebookProfile")
+        f.login.should eq("asd")
+        f.uid.should eq("uid")
+      end
+
+      it "builds proper subclass from string hash" do
+        f = Profile.new({"login" => "asd", "uid" => "uid", "type" => "FacebookProfile"})
+        f.should be_a(FacebookProfile)
+
+        f = f.as(FacebookProfile)
+        f.type.should eq("FacebookProfile")
+        f.login.should eq("asd")
+        f.uid.should eq("uid")
+      end
+
+      it "builds proper subclass from named tuple" do
+        f = Profile.new({login: "asd", email: "test@email.co", type: "TwitterProfile"})
+        f.should be_a(TwitterProfile)
+
+        f = f.as(TwitterProfile)
+        f.type.should eq("TwitterProfile")
+        f.login.should eq("asd")
+        f.email.should eq("test@email.co")
+      end
+
       it "properly loads aliased columns in superclass" do
-        b = Book.build({
+        b = Book.new({
           :name      => "HowToMapDbStuff?",
           :version   => 2,
           :publisher => "DbStuffMapper",
@@ -148,7 +178,7 @@ describe Jennifer::Model::STIMapping do
       end
 
       it "properly maps aliased columns in subclass" do
-        a = Article.build({
+        a = Article.new({
           :name      => "101DatabaseTypesYouDidNotKnowAbout",
           :version   => 1,
           :publisher => "DbStuffMapper",
@@ -185,7 +215,7 @@ describe Jennifer::Model::STIMapping do
     end
   end
 
-  describe "::all" do
+  describe ".all" do
     it "generates correct query" do
       q = FacebookProfile.all
       q.as_sql.should match(/#{reg_quote_identifier("profiles.type")} = %s/)
@@ -210,12 +240,12 @@ describe Jennifer::Model::STIMapping do
     end
 
     it "sets fields with column aliases in superclasses" do
-      b = BlogPost.build(
-        name: "ASimpleDbMappingTutorial",
-        version: 1,
+      b = BlogPost.new({
+        name:      "ASimpleDbMappingTutorial",
+        version:   1,
         publisher: "ATutorialPage",
-        url: "an.url.com"
-      ).to_h
+        url:       "an.url.com",
+      }).to_h
 
       b.keys.should eq(%i(id name version publisher type url))
       b[:name].should eq "ASimpleDbMappingTutorial"
@@ -225,12 +255,12 @@ describe Jennifer::Model::STIMapping do
     end
 
     it "sets fields with column aliases in subclasses" do
-      a = Article.build(
-        name: "AMeasureOnHowMuchDbMappingStuffThereIs",
-        version: 1,
+      a = Article.new({
+        name:      "AMeasureOnHowMuchDbMappingStuffThereIs",
+        version:   1,
         publisher: "MeasuringAllDay",
-        size: 19
-      ).to_h
+        size:      19,
+      }).to_h
 
       a.keys.should eq(%i(id name version publisher type size))
       a[:name].should eq "AMeasureOnHowMuchDbMappingStuffThereIs"
@@ -250,12 +280,12 @@ describe Jennifer::Model::STIMapping do
     end
 
     it "sets fields with column aliases in superclasses" do
-      b = BlogPost.build(
-        name: "AGuideForSpecTesting",
-        version: 99,
+      b = BlogPost.new({
+        name:      "AGuideForSpecTesting",
+        version:   99,
         publisher: "SpecTestingersLegion",
-        url: "spec.tests.com"
-      ).to_str_h
+        url:       "spec.tests.com",
+      }).to_str_h
       b.keys.should eq(%w(id name version publisher type url))
       b["name"].should eq "AGuideForSpecTesting"
       b["type"].should eq "BlogPost"
@@ -263,12 +293,12 @@ describe Jennifer::Model::STIMapping do
     end
 
     it "sets fields with column aliases in subclasses" do
-      b = Article.build(
-        name: "DealingWithSpecsInORMapping",
-        version: 99,
+      b = Article.new({
+        name:      "DealingWithSpecsInORMapping",
+        version:   99,
         publisher: "SpecTestingersLegion",
-        size: 3
-      ).to_str_h
+        size:      3,
+      }).to_str_h
       b.keys.should eq(%w(id name version publisher type size))
       b["name"].should eq "DealingWithSpecsInORMapping"
       b["type"].should eq "Article"
@@ -406,12 +436,12 @@ describe Jennifer::Model::STIMapping do
     end
 
     it "should ignore column mappings of virtual fields" do
-      b = BlogPost.build(
-        name: "AWebVersionOfInTheHillsTheCities",
-        version: 5,
+      b = BlogPost.new({
+        name:      "AWebVersionOfInTheHillsTheCities",
+        version:   5,
         publisher: "RandomBlogger",
-        url: "www.random-blog.blog"
-      )
+        url:       "www.random-blog.blog",
+      })
       timestamp = Time.utc
       b.created_at = timestamp
       b.attribute(:created_at).should eq timestamp
@@ -460,12 +490,12 @@ describe Jennifer::Model::STIMapping do
     end
 
     it "correctly maps column aliases" do
-      r = Article.build(
-        name: "ADiscussionOfDagon",
-        version: 3,
+      r = Article.new({
+        name:      "ADiscussionOfDagon",
+        version:   3,
         publisher: "DiscussionsAndOtherStuff",
-        size: 21
-      ).arguments_to_save
+        size:      21,
+      }).arguments_to_save
       r.is_a?(NamedTuple).should be_true
       r.keys.should eq({:args, :fields})
     end
@@ -493,12 +523,12 @@ describe Jennifer::Model::STIMapping do
     end
 
     it "returns tuple with mapped and changed parent arguments" do
-      b = Book.build(
-        name: "ABigLeatherBoundBook",
-        version: 1,
+      b = Book.new({
+        name:      "ABigLeatherBoundBook",
+        version:   1,
         publisher: "AndRichMahogany",
-        pages: 5099
-      )
+        pages:     5099,
+      })
 
       b.name = "BigLeatherBoundBooks"
       r = b.arguments_to_save
@@ -507,12 +537,12 @@ describe Jennifer::Model::STIMapping do
     end
 
     it "returns tuple with mapped and changed child arguments" do
-      a = Article.build(
-        name: "TunasWithBreathingApparatuses",
-        version: 4,
+      a = Article.new({
+        name:      "TunasWithBreathingApparatuses",
+        version:   4,
         publisher: "LikeToEatLions",
-        size: 3
-      )
+        size:      3,
+      })
 
       a.size = 5
       r = a.arguments_to_save
@@ -548,12 +578,12 @@ describe Jennifer::Model::STIMapping do
     end
 
     it "maps columns aliases" do
-      r = Article.build(
-        name: "MyNameIsDonnieSmith",
-        version: 5,
+      r = Article.new({
+        name:      "MyNameIsDonnieSmith",
+        version:   5,
         publisher: "PTA",
-        size: 1
-      ).arguments_to_insert
+        size:      1,
+      }).arguments_to_insert
       r.is_a?(NamedTuple).should be_true
       r.keys.should eq({:args, :fields})
 

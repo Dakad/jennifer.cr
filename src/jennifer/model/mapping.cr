@@ -21,7 +21,8 @@ module Jennifer
     # * `:column` - database column name associated with this attribute (default is attribute name);
     # * `:getter` - whether attribute reader should be generated (`true` by default);
     # * `:setter` - whether attribute writer should be generated (`true` by default);
-    # * `:virtual` - whether attribute is virtual (will not be stored to / retrieved from database);
+    # * `:virtual` - whether attribute is virtual (will not be stored to / read from the database);
+    # * `:generated` - whether attribute represents generated column (is only read from the database);
     # * `:converter` - class to be used to serialize/deserialize data.
     # * `:auto` - mark primary key as autoincrementable - it's value will be assigned by database automatically
     # (`true` for `Int32` & `Int64`)
@@ -173,16 +174,16 @@ module Jennifer
               end
             end
             options[:parsed_type] = stringified_type
-            options[:null] = false if options[:null] == nil
+            options[:null] = options[:primary] == true if options[:null] == nil
             options[:column] = (options[:column] || key).id.stringify
 
             if options[:type].resolve.nilable?
               options[:null] = true
-            elsif options[:null] || options[:primary]
+            elsif options[:null]
               options[:parsed_type] = stringified_type + "?"
             end
 
-            if options[:primary] && options[:auto] != false
+            if options[:primary] && options[:auto] == nil
               options[:auto] = AUTOINCREMENTABLE_STR_TYPES.includes?(stringified_type)
             end
 
@@ -211,7 +212,7 @@ module Jennifer
           add_default_constructor = COLUMNS_METADATA.keys.all? do |field|
             options = COLUMNS_METADATA[field]
 
-            options[:primary] || options[:null] || options.keys.includes?(:default.id)
+            options[:null] || options.keys.includes?(:default.id)
           end
           properties = COLUMNS_METADATA
           nonvirtual_attrs = properties.keys.select { |attr| !properties[attr][:virtual] }
@@ -315,7 +316,7 @@ module Jennifer
 
         # :nodoc:
         def arguments_to_save
-          hash = changes
+          hash = changes_before_typecast
           {args: hash.values, fields: hash.keys}
         end
 
@@ -324,7 +325,7 @@ module Jennifer
           args = [] of ::Jennifer::DBAny
           fields = [] of String
           {% for attr, options in properties %}
-            {% unless options[:virtual] || options[:primary] && options[:auto] %}
+            {% unless options[:generated] || options[:virtual] || options[:primary] && options[:auto] %}
               args << attribute_before_typecast("{{attr}}")
               fields << {{options[:column]}}
             {% end %}
@@ -333,11 +334,11 @@ module Jennifer
         end
 
         # :nodoc:
-        def changes : Hash(String, ::Jennifer::DBAny)
+        def changes_before_typecast : Hash(String, ::Jennifer::DBAny)
           hash = Hash(String, ::Jennifer::DBAny).new
           {% for attr in nonvirtual_attrs %}
             {% options = properties[attr] %}
-            {% unless options[:primary] %}
+            {% unless options[:primary] || options[:generated] %}
               hash[{{options[:column]}}] = attribute_before_typecast("{{attr}}") if @{{attr.id}}_changed
             {% end %}
           {% end %}
@@ -418,25 +419,35 @@ module Jennifer
                 {% if value[:converter] %}
                   {{value[:converter]}}.from_hash(values, {{column1}}, self.class.columns_tuple[:{{key.id}}])
                 {% else %}
-                  values[{{column1}}]
+                  {{@type}}.read_adapter.coerce_database_value(values[{{column1}}], {{value[:type]}})
                 {% end %}
-            elsif values.has_key?({{column2}})
-              %var{key.id} =
-                {% if value[:converter] %}
-                  {{value[:converter]}}.from_hash(values, {{column2}}, self.class.columns_tuple[:{{key.id}}])
-                {% else %}
-                  values[{{column2}}]
-                {% end %}
+            {% if column2 %}
+              elsif values.has_key?({{column2}})
+                %var{key.id} =
+                  {% if value[:converter] %}
+                    {{value[:converter]}}.from_hash(values, {{column2}}, self.class.columns_tuple[:{{key.id}}])
+                  {% else %}
+                    {{@type}}.read_adapter.coerce_database_value(values[{{column2}}], {{value[:type]}})
+                  {% end %}
+            {% end %}
             end
           {% end %}
 
           {% for key, value in properties %}
             begin
               %casted_var{key.id} =
-                {% if value[:parsed_type] =~ /String/ %}
+                {% if value[:parsed_type].includes?("String") %}
                   %var{key.id}
                 {% else %}
-                  (%var{key.id}.is_a?(String) ? self.class.coerce_{{key.id}}(%var{key.id}) : %var{key.id})
+                  if %var{key.id}.is_a?(String)
+                    self.class.coerce_{{key.id}}(%var{key.id})
+                  else
+                    {% if value[:parsed_type].includes?("Int64") %}
+                      %var{key.id}.is_a?(Int32) ? %var{key.id}.to_i64 : %var{key.id}
+                    {% else %}
+                      %var{key.id}
+                    {% end %}
+                  end
                 {% end %}
                 .as({{value[:parsed_type].id}})
             rescue e : Exception
@@ -509,6 +520,7 @@ module Jennifer
       # - default
       # - converter
       # - column
+      # - generated
       #
       # For more details see `Mapping` module documentation.
       macro mapping(properties, strict = true)

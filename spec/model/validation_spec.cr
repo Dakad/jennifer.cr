@@ -22,7 +22,7 @@ postgres_only do
     table_name "contacts"
 
     mapping({
-      id:       Primary32,
+      id:       Primary64,
       ballance: {type: BigDecimal, converter: Jennifer::Model::BigDecimalConverter(PG::Numeric), scale: 2},
     }, false)
 
@@ -34,7 +34,7 @@ class GTNContact < Jennifer::Model::Base
   table_name "contacts"
 
   mapping({
-    id:          Primary32,
+    id:          Primary64,
     age:         Int32?,
     validatable: {type: Bool, default: true, virtual: true},
   }, false)
@@ -45,7 +45,7 @@ end
 
 class AcceptanceContact < ApplicationRecord
   mapping({
-    id:               Primary32,
+    id:               Primary64,
     name:             String,
     terms_of_service: {type: Bool, default: false, virtual: true},
     eula:             {type: String?, virtual: true},
@@ -57,7 +57,7 @@ end
 
 class ConfirmationContact < ApplicationRecord
   mapping({
-    id:                                 Primary32,
+    id:                                 Primary64,
     name:                               String?,
     case_insensitive_name:              String?,
     name_confirmation:                  {type: String?, virtual: true},
@@ -70,7 +70,7 @@ end
 
 class PresenceContact < ApplicationRecord
   mapping({
-    id:          Primary32,
+    id:          Primary64,
     name:        String?,
     address:     String?,
     confirmable: {type: Bool, virtual: true, default: true},
@@ -97,18 +97,47 @@ end
 
 class CustomValidatorModel < ApplicationRecord
   mapping({
-    id:   Primary32,
+    id:   Primary64,
     name: String,
   })
 
   validates_with ValidatorWithOptions, field: :name, message: "Custom Message"
 end
 
+class SymbolMessageValidationModel < ApplicationRecord
+  mapping({
+    id:   Primary64,
+    name: String,
+  })
+
+  validates_format :name, /qwe/, message: :present
+end
+
+class StringMessageValidationModel < ApplicationRecord
+  mapping({
+    id:   Primary64,
+    name: String,
+  })
+
+  validates_length :name, is: 3, message: "String message"
+end
+
+class ProcMessageValidationModel < ApplicationRecord
+  mapping({
+    id:   Primary64,
+    name: String,
+  })
+
+  validates_length :name, is: 3, message: ->(record : Jennifer::Model::Translation, _field : String) do
+    record.as(ProcMessageValidationModel).name
+  end
+end
+
 describe Jennifer::Model::Validation do
   describe "if option" do
     context "with negative response" do
       it "doesn't invoke related validation" do
-        c = PresenceContact.build
+        c = PresenceContact.new
         c.confirmable = false
         c.should be_valid
       end
@@ -116,12 +145,29 @@ describe Jennifer::Model::Validation do
 
     context "with expression" do
       it do
-        c = GTNContact.build({:age => 16})
+        c = GTNContact.new({:age => 16})
         c.validatable = false
         c.should be_valid
         c.age = 14
         c.should_not be_valid
       end
+    end
+  end
+
+  describe "message option" do
+    it "uses string value as a complete message" do
+      record = StringMessageValidationModel.new({name: "1234"})
+      record.should validate(:name).with("String message")
+    end
+
+    it "uses symbol message as a key for message translation lookup" do
+      record = SymbolMessageValidationModel.new({name: "1234"})
+      record.should validate(:name).with("must be blank")
+    end
+
+    it "uses proc message to generate message dynamically" do
+      record = ProcMessageValidationModel.new({name: "1234"})
+      record.should validate(:name).with("1234")
     end
   end
 
@@ -137,12 +183,12 @@ describe Jennifer::Model::Validation do
 
     context "with extra options" do
       it do
-        subject = CustomValidatorModel.build(name: "valid")
+        subject = CustomValidatorModel.new({name: "valid"})
         subject.should be_valid
       end
 
       it do
-        subject = CustomValidatorModel.build(name: "invalid")
+        subject = CustomValidatorModel.new({name: "invalid"})
         subject.should validate(:name).with("Custom Message")
       end
     end
@@ -352,14 +398,14 @@ describe Jennifer::Model::Validation do
   describe "%validates_presence" do
     context "when field is not nil" do
       it "pass validation" do
-        c = PresenceContact.build({:name => "New country"})
+        c = PresenceContact.new({:name => "New country"})
         c.should be_valid
       end
     end
 
     context "when field is nil" do
       it "doesn't pass validation" do
-        c = PresenceContact.build
+        c = PresenceContact.new
         c.should validate(:name).with("can't be blank")
       end
     end
@@ -368,14 +414,14 @@ describe Jennifer::Model::Validation do
   describe "%validates_absence" do
     context "when field is not nil" do
       it "pass validation" do
-        c = PresenceContact.build({:name => "New country"})
+        c = PresenceContact.new({:name => "New country"})
         c.should be_valid
       end
     end
 
     context "when field is nil" do
       it "doesn't pass validation" do
-        c = PresenceContact.build({:address => "asd"})
+        c = PresenceContact.new({:address => "asd"})
         c.should validate(:address).with("must be blank")
       end
     end
@@ -384,24 +430,24 @@ describe Jennifer::Model::Validation do
   describe "%validates_numericality" do
     context "with allowed nil value" do
       it "passes validation if value is nil" do
-        c = GTNContact.build({:age => nil})
+        c = GTNContact.new({:age => nil})
         c.should be_valid
       end
 
       it "process validation if value is not nil" do
-        c = GTNContact.build({:age => 20})
+        c = GTNContact.new({:age => 20})
         c.should_not be_valid
       end
     end
 
     context "with greater_than option" do
       it "adds error message if it breaks a condition" do
-        c = GTContact.build(age: 20)
+        c = GTContact.new({age: 20})
         c.should validate(:age).with("must be greater than 20")
       end
 
       it "pass validation if an attribute satisfies condition" do
-        c = GTContact.build(age: 21)
+        c = GTContact.new({age: 21})
         c.should be_valid
       end
 
@@ -415,105 +461,105 @@ describe Jennifer::Model::Validation do
 
     context "with greater_than_or_equal_to option" do
       it "adds error message if it breaks a condition" do
-        c = GTEContact.build(age: 19)
+        c = GTEContact.new({age: 19})
         c.should validate(:age).with("must be greater than or equal to 20")
       end
 
       it "pass validation if an attribute satisfies condition" do
-        c = GTEContact.build(age: 20)
+        c = GTEContact.new({age: 20})
         c.should be_valid
       end
     end
 
     context "with equal_to option" do
       it "adds error message if it breaks a condition" do
-        c = EContact.build(age: 19)
+        c = EContact.new({age: 19})
         c.should validate(:age).with("must be equal to 20")
       end
 
       it "pass validation if an attribute satisfies condition" do
-        c = EContact.build(age: 20)
+        c = EContact.new({age: 20})
         c.should be_valid
       end
     end
 
     context "with less_than option" do
       it "adds error message if it breaks a condition" do
-        c = LTContact.build(age: 20)
+        c = LTContact.new({age: 20})
         c.should validate(:age).with("must be less than 20")
       end
 
       it "pass validation if an attribute satisfies condition" do
-        c = LTContact.build(age: 19)
+        c = LTContact.new({age: 19})
         c.should be_valid
       end
     end
 
     context "with less_than_or_equal_to option" do
       it "adds error message if it breaks a condition" do
-        c = LTEContact.build(age: 21)
+        c = LTEContact.new({age: 21})
         c.should validate(:age).with("must be less than or equal to 20")
       end
 
       it "pass validation if an attribute satisfies condition" do
-        c = LTEContact.build(age: 20)
+        c = LTEContact.new({age: 20})
         c.should be_valid
       end
     end
 
     context "with other_than option" do
       it "adds error message if it breaks a condition" do
-        c = OTContact.build(age: 20)
+        c = OTContact.new({age: 20})
         c.should validate(:age).with("must be other than 20")
       end
 
       it "pass validation if an attribute satisfies condition" do
-        c = OTContact.build(age: 21)
+        c = OTContact.new({age: 21})
         c.should be_valid
       end
     end
 
     context "with odd option" do
       it "adds error message if it breaks a condition" do
-        c = OddContact.build(age: 20)
+        c = OddContact.new({age: 20})
         c.should validate(:age).with("must be odd")
       end
 
       it "pass validation if an attribute satisfies condition" do
-        c = OddContact.build(age: 21)
+        c = OddContact.new({age: 21})
         c.should be_valid
       end
     end
 
     context "with even option" do
       it "adds error message if it breaks a condition" do
-        c = EvenContact.build(age: 21)
+        c = EvenContact.new({age: 21})
         c.should validate(:age).with("must be even")
       end
 
       it "pass validation if an attribute satisfies condition" do
-        c = EvenContact.build(age: 20)
+        c = EvenContact.new({age: 20})
         c.should be_valid
       end
     end
 
     context "with several specified validations" do
       it "adds error message if it breaks any condition" do
-        c = SeveralValidationsContact.build(age: 20)
+        c = SeveralValidationsContact.new({age: 20})
         c.should validate(:age).with("must be greater than 20")
         c.age = 31
         c.should validate(:age).with("must be less than or equal to 30")
       end
 
       it "pass validation if an attribute satisfies all conditions" do
-        c = SeveralValidationsContact.build(age: 21)
+        c = SeveralValidationsContact.new({age: 21})
         c.should be_valid
       end
     end
 
     context "with if condition" do
       it "doesn't invoke related validation if condition is negative" do
-        c = GTNContact.build({:age => 16})
+        c = GTNContact.new({:age => 16})
         c.validatable = false
         c.should be_valid
       end
@@ -522,12 +568,12 @@ describe Jennifer::Model::Validation do
 
   describe "%validates_acceptance" do
     it "pass validation" do
-      c = AcceptanceContact.build({:name => "New country", :terms_of_service => true, :eula => "yes"})
+      c = AcceptanceContact.new({:name => "New country", :terms_of_service => true, :eula => "yes"})
       c.should be_valid
     end
 
     it "adds error message if doesn't satisfies validation" do
-      c = AcceptanceContact.build({:name => "New country", :eula => "no"})
+      c = AcceptanceContact.new({:name => "New country", :eula => "no"})
       c.should validate(:terms_of_service).with("must be accepted")
       c.should validate(:eula).with("must be accepted")
     end
@@ -536,13 +582,13 @@ describe Jennifer::Model::Validation do
   describe "%validates_confirmation" do
     context "with nil confirmations" do
       it "pass validation" do
-        c = ConfirmationContact.build({:name => "name"})
+        c = ConfirmationContact.new({:name => "name"})
         c.should be_valid
       end
     end
 
     it "pass validation" do
-      c = ConfirmationContact.build({
+      c = ConfirmationContact.new({
         :name                               => "name",
         :case_insensitive_name              => "cin",
         :name_confirmation                  => "name",
@@ -552,7 +598,7 @@ describe Jennifer::Model::Validation do
     end
 
     it "adds error message if doesn't satisfies validation" do
-      c = ConfirmationContact.build({
+      c = ConfirmationContact.new({
         :name                               => "name",
         :case_insensitive_name              => "cin",
         :name_confirmation                  => "Name",

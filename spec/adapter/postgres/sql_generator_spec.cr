@@ -6,7 +6,12 @@ private macro quote_example(value, type_cast)
     value = {{value}}
     adapter.query("SELECT #{described_class.quote(value)}::{{type_cast.id}}") do |rs|
       rs.each do
-        result = rs.read
+        result =
+          {% if type_cast == "json" || type_cast == "jsonb" %}
+            rs.read(JSON::Any)
+          {% else %}
+            rs.read
+          {% end %}
         result.should eq(value)
         executed = true
       end
@@ -20,7 +25,7 @@ postgres_only do
     described_class = Jennifer::Adapter.default_adapter.sql_generator
     adapter = Jennifer::Adapter.default_adapter
 
-    describe "::lock_clause" do
+    describe ".lock_clause" do
       it "render custom query part if specified" do
         query = Contact.all.lock("FOR NO KEY UPDATE")
         sb { |s| described_class.lock_clause(s, query) }.should match(/FOR NO KEY UPDATE/)
@@ -50,7 +55,7 @@ postgres_only do
       end
     end
 
-    describe "::parse_query" do
+    describe ".parse_query" do
       it "replace placeholders with dollar numbers" do
         described_class.parse_query("asd %s qwe %s", [1, 2] of Jennifer::DBAny).should eq({"asd $1 qwe $2", [1, 2]})
       end
@@ -62,7 +67,7 @@ postgres_only do
       end
     end
 
-    describe "::insert_on_duplicate" do
+    describe ".insert_on_duplicate" do
       it "do not add on conflict columns if none present" do
         query = described_class.insert_on_duplicate("contacts", ["field1"], 1, [] of String, {} of Nil => Nil)
         query.should match(/ON CONFLICT DO NOTHING/)

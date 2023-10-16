@@ -8,7 +8,7 @@ Add the shard to your `shard.yml`
 dependencies:
   jennifer:
     github: imdrasil/jennifer.cr
-    version: "~> 0.12.0"
+    version: "~> 0.13.0"
 ```
 
 For MySQL and PostgreSQL you need to add related driver shard - [crystal-mysql](https://github.com/crystal-lang/crystal-mysql) or [crystal-pg](https://github.com/will/crystal-pg):
@@ -17,14 +17,14 @@ For MySQL and PostgreSQL you need to add related driver shard - [crystal-mysql](
 dependencies:
   jennifer:
     github: imdrasil/jennifer.cr
-    version: "= 0.12.0"
+    version: "~> 0.13.0"
   pg:
     github: will/crystal-pg
-    version: "= 0.23.2"
+    version: "= 0.26.0"
   # or for mysql
   crystal-mysql:
     github: crystal-lang/crystal-mysql
-    version: "= 0.13.0"
+    version: "= 0.14.0"
 ```
 
 If you want to use SQLite3 - add [Jennifer SQLite3 **adapter**](https://github.com/imdrasil/jennifer_sqlite3_adapter):
@@ -33,7 +33,7 @@ If you want to use SQLite3 - add [Jennifer SQLite3 **adapter**](https://github.c
 dependencies:
   jennifer:
     github: imdrasil/jennifer.cr
-    version: "= 0.12.0"
+    version: "~> 0.13.0"
   jennifer_sqlite3_adapter:
     github: imdrasil/jennifer_sqlite3_adapter
     version: "~> 0.3.1"
@@ -57,7 +57,7 @@ APP_ENV = ENV["APP_ENV"]? || "development"
 Jennifer::Config.configure do |conf|
   conf.read("config/database.yml", APP_ENV)
   conf.from_uri(ENV["DATABASE_URI"]) if ENV.has_key?("DATABASE_URI")
-  conf.logger.level = APP_ENV == "development" ? :debug : :error
+  conf.logger.level = APP_ENV == "development" ? Log::Severity::Debug : Log::Severity::Error
 end
 
 Log.setup "db", :debug, Log::IOBackend.new(formatter: Jennifer::Adapter::DBFormatter)
@@ -80,11 +80,11 @@ development:
 
 test:
   <<: *default
-  db: application_database_name_development
+  db: application_database_name_test
 
 production:
   <<: *default
-  db: application_database_name_development
+  db: application_database_name_production
 ```
 
 > NOTE: prefer creating shared database configuration file template rather than exact one (aka `database.example.yml`) so everyone can configure it for themselves.
@@ -140,7 +140,7 @@ This generates 2 files:
     with_timestamps
 
     mapping(
-      id: Primary32,
+      id: Primary64,
       name: String,
       age: Int32,
     )

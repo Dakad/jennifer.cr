@@ -51,6 +51,12 @@ module Jennifer
         abstract def columns_tuple
 
         abstract def coercer
+
+        # Return `Jennifer::QueryBuilder::Criteria` for primary column or raises a `Jennifer::AbstractMethod`
+        abstract def primary
+
+        # Return primary field name or raises a `Jennifer::AbstractMethod`
+        abstract def primary_field_name
       end
 
       extend AbstractClassMethods
@@ -82,7 +88,7 @@ module Jennifer
       # If somewhy you define model with custom table name after the place where adapter is used the first time -
       # manually invoke this method anywhere after table name definition.
       def self.actual_table_field_count
-        @@actual_table_field_count ||= read_adapter.table_column_count(table_name)
+        @@actual_table_field_count ||= read_adapter.table_column_count(table_name).to_i
       end
 
       # :nodoc:
@@ -104,7 +110,7 @@ module Jennifer
 
       # Returns model foreign key name.
       def self.foreign_key_name
-        @@foreign_key_name ||= Inflector.singularize(table_name) + "_id"
+        @@foreign_key_name ||= Wordsmith::Inflector.singularize(table_name) + "_id"
       end
 
       # Initializes new object based on given arguments.
@@ -145,6 +151,20 @@ module Jennifer
         o
       end
 
+      # Similar to `.create` but yields initialized object to the block before save it.
+      #
+      # ```
+      # User.create({:first_name => "Jennifer"}) do |user|
+      #   user.last_name = "Doe"
+      # end
+      # ```
+      def self.create(values : Hash | NamedTuple, &block)
+        o = new(values)
+        yield o
+        o.save
+        o
+      end
+
       # Creates an object based on an empty hash and saves it to the database, if validation pass.
       #
       # The resulting object is return whether it was saved to the database or not.
@@ -158,6 +178,20 @@ module Jennifer
         o
       end
 
+      # Similar to `.create` but yields initialized object to the block before save it.
+      #
+      # ```
+      # User.create do |user|
+      #   user.last_name = "Doe"
+      # end
+      # ```
+      def self.create(&block)
+        o = new({} of String => DBAny)
+        yield o
+        o.save
+        o
+      end
+
       # Creates an object based on `values` and saves it to the database, if validation pass.
       #
       # The resulting object is return whether it was saved to the database or not.
@@ -167,6 +201,20 @@ module Jennifer
       # ```
       def self.create(**values)
         o = new(values)
+        o.save
+        o
+      end
+
+      # Similar to `.create` but yields initialized object to the block before save it.
+      #
+      # ```
+      # User.create(name: "Jennifer") do |user|
+      #   user.last_name = "Doe"
+      # end
+      # ```
+      def self.create(**values, &block)
+        o = new(values)
+        yield o
         o.save
         o
       end
@@ -185,6 +233,20 @@ module Jennifer
         o
       end
 
+      # Similar to `.create!` but yields initialized object to the block before save it.
+      #
+      # ```
+      # User.create!({:name => "Jennifer"}) do |user|
+      #   user.last_name = "Doe"
+      # end
+      # ```
+      def self.create!(values : Hash | NamedTuple, &block)
+        o = new(values)
+        yield o
+        o.save!
+        o
+      end
+
       # Creates an object based on empty hash and saves it to the database, if validation pass.
       #
       # Raises an `RecordInvalid` error if validation fail, unlike `.create`.
@@ -198,6 +260,20 @@ module Jennifer
         o
       end
 
+      # Similar to `.create!` but yields initialized object to the block before save it.
+      #
+      # ```
+      # User.create! do |user|
+      #   user.last_name = "Doe"
+      # end
+      # ```
+      def self.create!(&block)
+        o = new({} of Symbol => DBAny)
+        yield o
+        o.save!
+        o
+      end
+
       # Creates an object based on `values` and saves it to the database, if validation pass.
       #
       # Raises an `RecordInvalid` error if validation fail, unlike `.create`.
@@ -207,6 +283,20 @@ module Jennifer
       # ```
       def self.create!(**values)
         o = new(values)
+        o.save!
+        o
+      end
+
+      # Similar to `.create!` but yields initialized object to the block before save it.
+      #
+      # ```
+      # User.create!(name: "Jennifer") do |user|
+      #   user.last_name = "Doe"
+      # end
+      # ```
+      def self.create!(**values, &block)
+        o = new(values)
+        yield o
         o.save!
         o
       end
@@ -238,6 +328,16 @@ module Jennifer
 
       def self.coercer
         Coercer
+      end
+
+      # Return `Jennifer::QueryBuilder::Criteria` for primary column or raises a `Jennifer::AbstractMethod`
+      def self.primary
+        raise AbstractMethod.new(:primary, {{@type}})
+      end
+
+      # Return primary field name or raises a `Jennifer::AbstractMethod`
+      def self.primary_field_name
+        raise AbstractMethod.new(:primary_field_name, {{@type}})
       end
 
       # Sets *name* field with *value*
@@ -292,9 +392,15 @@ module Jennifer
       abstract def arguments_to_insert
 
       # Hash of changed columns and their new values.
-      abstract def changes : Hash(String, Jennifer::DBAny)
+      abstract def changes_before_typecast : Hash(String, Jennifer::DBAny)
 
       abstract def destroy_without_transaction
+
+      # Return primary field value or raises a `Jennifer::AbstractMethod`
+      abstract def primary
+
+      # :nodoc:
+      abstract def init_primary_field(value)
 
       private abstract def save_record_under_transaction(skip_validation)
       private abstract def init_attributes(values : Hash)

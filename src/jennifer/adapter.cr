@@ -3,10 +3,11 @@ require "./adapter/base"
 module Jennifer
   # All possible database types for any driver.
   alias DBAny = Array(Int32) | Array(Char) | Array(Float32) | Array(Float64) |
-                Array(Int16) | Array(Int64) | Array(String) |
-                Bool | Char | Float32 | Float64 | Int8 | Int16 | Int32 | Int64 | JSON::Any | String | Time | Nil |
-                PG::Geo::Box | PG::Geo::Circle | PG::Geo::Line | PG::Geo::LineSegment | PG::Geo::Path |
-                PG::Geo::Point | PG::Geo::Polygon | PG::Numeric | Slice(UInt8) | Time::Span | UInt32 | UUID
+                Array(Int16) | Array(Int64) | Array(String) | Array(UUID) | Array(Bool) | Array(Time) |
+                Bool | Char | Float32 | Float64 | Int8 | Int16 | Int32 | Int64 | JSON::Any | JSON::PullParser |
+                String | Time | Nil | PG::Geo::Box | PG::Geo::Circle | PG::Geo::Line | PG::Geo::LineSegment |
+                PG::Geo::Path | PG::Geo::Point | PG::Geo::Polygon | PG::Numeric | Slice(UInt8) | Time::Span | UInt32 |
+                UUID
 
   module Adapter
     TYPES = %i(

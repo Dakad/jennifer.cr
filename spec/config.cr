@@ -60,12 +60,14 @@ def set_default_configuration
   Jennifer::Config.reset_config
 
   Jennifer::Config.configure do |conf|
-    conf.read(File.join(__DIR__, "..", "scripts", "database.yml"), Spec.adapter)
+    conf.read(File.join(__DIR__, "../scripts/database.yml"), Spec.adapter)
     conf.logger = Spec.logger
+    # conf.logger.level = :debug
     conf.user = ENV["DB_USER"] if ENV["DB_USER"]?
     conf.password = ENV["DB_PASSWORD"] if ENV["DB_PASSWORD"]?
     conf.verbose_migrations = false
     conf.local_time_zone_name = "Europe/Kiev"
+    conf.pool_size = (ENV["DB_CONNECTION_POOL"]? || 1).to_i
   end
 
   Log.setup "db", :debug, Spec.logger_backend

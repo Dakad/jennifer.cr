@@ -108,6 +108,30 @@ module Jennifer
         exec "REFRESH MATERIALIZED VIEW #{name}"
       end
 
+      def read_column(rs : PG::ResultSet, column)
+        {% begin %}
+        value = rs.read
+        value =
+          case value
+          {% for type in [Bool, Char, Int16, Int32, Int64, Float32, Float64, UUID, String] %}
+            when Array(PG::{{type}}Array)
+              Ifrit.typed_array_cast(value, {{type}})
+          {% end %}
+          when Array(PG::TimeArray)
+            Ifrit.typed_array_cast(value, Time).map! do |time|
+              set_time_column_zone(time)
+            end
+          when Array(Time)
+            value.map! { |time| set_time_column_zone(time) }
+          when Time
+            set_time_column_zone(value)
+          else
+            value
+          end
+        value.as(DBAny)
+        {% end %}
+      end
+
       def table_column_count(table)
         if table_exists?(table)
           Query["information_schema.columns", self].where { _table_name == table }.count
@@ -174,7 +198,7 @@ module Jennifer
           .exists?
       end
 
-      def index_exists?(_table, name : String)
+      def index_exists?(table, name : String)
         Query["pg_class", self]
           .join("pg_namespace") { _oid == _pg_class__relnamespace }
           .where { (_pg_class__relname == name) & (_pg_namespace__nspname == config.schema) }
@@ -244,7 +268,7 @@ module Jennifer
         # NOTE: any pg enum field must be converted back to string from slice in bulk insert
         klass.columns_tuple.each do |field, properties|
           if properties.has_key?(:converter) && properties.dig(:converter) == ::Jennifer::Model::PgEnumConverter
-            enum_fields << {fields.index(field.to_s).not_nil!, field}
+            enum_fields << {fields.index(field.to_s).not_nil!, field} # ameba:disable Lint/NotNilAfterNoBang
           end
         end
 

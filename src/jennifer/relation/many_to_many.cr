@@ -37,9 +37,9 @@ module Jennifer
         rel
       end
 
-      def query(primary_value)
+      def query(primary_value_or_array)
         afk = association_foreign_key
-        _primary_value = primary_value
+        _primary_value = primary_value_or_array
         mfk = foreign_field
         q = T.all.join(join_table!) do
           (c(afk) == T.primary) &
@@ -69,7 +69,7 @@ module Jennifer
       end
 
       def association_foreign_key
-        @association_foreign || Inflector.foreign_key(T.to_s)
+        @association_foreign || Wordsmith::Inflector.foreign_key(T.to_s)
       end
 
       def preload_relation(collection, out_collection : Array(Model::Resource), pk_repo)

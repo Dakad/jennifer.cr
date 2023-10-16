@@ -249,6 +249,21 @@ describe Jennifer::QueryBuilder::EagerLoading do
       end
     end
 
+    it "loads STI record" do
+      c = ContactWithDependencies.create!({name: "test name", description: "description"})
+      profile1 = Factory.create_facebook_profile(contact_id: c.id)
+      profile2 = Factory.create_twitter_profile(contact_id: c.id)
+      ContactWithDependencies.eager_load(:profiles).order(Profile._id.asc).each do |contact|
+        contact.id.should eq(c.id)
+        contact.profiles.size.should eq(2)
+        contact.profiles[0].should be_a(FacebookProfile)
+        contact.profiles[0].as(FacebookProfile).uid.should eq(profile1.uid)
+
+        contact.profiles[1].should be_a(TwitterProfile)
+        contact.profiles[1].as(TwitterProfile).email.should eq(profile2.email)
+      end
+    end
+
     context "with defined inverse_of" do
       it "sets owner during building collection" do
         c = Factory.create_contact
@@ -306,6 +321,75 @@ describe Jennifer::QueryBuilder::EagerLoading do
           res[0].passport.should be_nil
           res[0].countries.size.should eq(1)
           res[0].countries[0].cities.size.should eq(1)
+        end
+      end
+    end
+
+    describe "JSON" do
+      it do
+        u = Factory.create_user([:with_valid_password])
+        value = {:a => 2}.to_json
+        AllTypeModel.create!({:bigint_f => u.id, :json_f => value})
+        executed_times = 0
+        User.all.preload(:all_types_records).to_a.each do |user|
+          executed_times += 1
+          expect_query_silence do
+            user.all_types_records[0].json_f.should eq(JSON.parse(value))
+          end
+        end
+        executed_times.should eq(1)
+      end
+    end
+
+    postgres_only do
+      describe "Array(Int32)" do
+        it do
+          u = Factory.create_user([:with_valid_password])
+          value = [1, 2]
+          AllTypeModel.create!({:bigint_f => u.id, :array_int32_f => value})
+          executed_times = 0
+          User.all.preload(:all_types_records).to_a.each do |user|
+            executed_times += 1
+            expect_query_silence do
+              user.all_types_records[0].array_int32_f.should eq(value)
+            end
+          end
+          executed_times.should eq(1)
+        end
+      end
+
+      describe "Array(String)" do
+        it do
+          u = Factory.create_user([:with_valid_password])
+          value = %w[foo bar]
+          AllTypeModel.create!({:bigint_f => u.id, :array_string_f => value})
+          executed_times = 0
+          User.all.preload(:all_types_records).to_a.each do |user|
+            executed_times += 1
+            expect_query_silence do
+              user.all_types_records[0].array_string_f.should eq(value)
+            end
+          end
+          executed_times.should eq(1)
+        end
+      end
+
+      describe "Array(Time)" do
+        it do
+          u = Factory.create_user([:with_valid_password])
+          value = [
+            Time.local(2010, 12, 10, 20, 10, 10, location: ::Jennifer::Config.local_time_zone),
+            Time.local(2011, 12, 10, 20, 10, 10, location: ::Jennifer::Config.local_time_zone),
+          ]
+          AllTypeModel.create!({:bigint_f => u.id, :array_time_f => value})
+          executed_times = 0
+          User.all.preload(:all_types_records).to_a.each do |user|
+            executed_times += 1
+            expect_query_silence do
+              user.all_types_records[0].array_time_f.should eq(value)
+            end
+          end
+          executed_times.should eq(1)
         end
       end
     end

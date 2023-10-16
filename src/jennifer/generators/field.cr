@@ -22,9 +22,10 @@ module Jennifer
         "timestamp" => "Time",
         "date_time" => "Time",
 
-        "json" => "JSON::Any",
+        "json"  => "JSON::Any",
+        "jsonb" => "JSON::Any",
 
-        REFERENCE_TYPE => "Int32",
+        REFERENCE_TYPE => "Int64",
       }
 
       getter name : String, type : String, nilable : Bool
@@ -41,7 +42,7 @@ module Jennifer
       end
 
       def field_name
-        reference? ? Inflector.foreign_key(name) : name
+        reference? ? Wordsmith::Inflector.foreign_key(name) : name
       end
 
       def cr_type

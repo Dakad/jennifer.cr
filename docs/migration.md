@@ -71,7 +71,7 @@ PostgreSQL specific datatypes:
 | `#line` | `LINE` | `PG::Geo::Line` |
 | `#circle` | `CIRCLE` | `PG::Geo::Circle` |
 
-Also if you use postgres array types are available as well: `Array(Int32)`, `Array(Char)`, `Array(Float32)`,  `Array(Float64)`, `Array(Int16)`, `Array(Int32)`, `Array(Int64)`, `Array(String)`.
+Also if you use postgres array types are available as well: `Array(Int32)`, `Array(Char)`, `Array(Float32)`,  `Array(Float64)`, `Array(Int16)`, `Array(Int32)`, `Array(Int64)`, `Array(String)`, `Array(Time)`, `Array(UUID)`. Currently only plain (1 dimensional) arrays are supported. Also take into account that to be able to use `Array(String)` you need to use `text :my_column, {:array => true}` in your migration.
 
 All those methods accepts additional options:
 
@@ -79,7 +79,7 @@ All those methods accepts additional options:
 - `:null` - present nullable if field (by default is `false` for all types and field);
 - `:primary` - marks field as primary key field (could be several ones but this provides some bugs with query generation for such model - for now try to avoid this).
 - `:default` - default value for field
-- `:auto_increment` - marks field to use auto increment (properly works only with `Int32` fields, another crystal types have cut functionality for it);
+- `:auto_increment` - marks field to use auto increment (properly works only with `Int32 | Int64` fields, another crystal types have cut functionality for it);
 - `:array` - mark field to be array type (postgres only)
 
 Also there is `#field` method which allows to directly define SQL type.
@@ -203,7 +203,28 @@ For more details check source code and PostgreSQL docs.
 
 ## Micrate
 
-It it is more convenient to you to store migrations in a plain SQL it is possible to use [micrate]() together with Jennifer. To do so you need to add it to you dependencies and add `micrate.cr` file at the root (or any other convenient place) of your project with the following content:
+If it is more convenient to you to store migrations in a plain SQL it is possible to use [micrate](https://github.com/amberframework/micrate) together with Jennifer. To do so you need to:
+- add it to you dependencies
+
+```yml
+# shard.yml
+dependencies:
+  micrate:
+    github: "amberframework/micrate"
+    version: "= 0.15.0"
+```
+- add an override for a `crystal-db` to enforce latest version
+
+```yml
+# shard.override.yml
+dependencies:
+  db:
+    github: crystal-lang/crystal-db
+    version: ~> 0.11.0
+```
+
+- ensure your Jennifer configuration has `pool_size` set to at least 2
+- add `micrate.cr` file at the root (or any other convenient place) of your project with the following content:
 
 ```crystal
 require "micrate"
@@ -228,13 +249,11 @@ module Micrate
 end
 
 Micrate::DB.connection_url = Jennifer::Adapter.default_adapter.connection_string(:db)
-puts Dir.
 Micrate::Cli.run
-
 ```
 
 After this all migration files located in the specified directory is accessible for Micrate and you can use commands like
 
 ```sh
-$ crystal /micrate.cr -- up
+$ crystal micrate.cr -- up
 ```

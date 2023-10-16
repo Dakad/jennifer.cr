@@ -13,7 +13,7 @@ In order to use available callbacks, you need to define them. To do this impleme
 ```crystal
 class User < Jennifer::Base::Model
   mapping(
-    id: Primary32,
+    id: Primary64,
     email: String
   )
 
@@ -71,7 +71,7 @@ The following methods trigger callbacks:
 - update
 - update!
 
-The `after_initialize` callback is triggered each time record is initialized using method `::build`.
+The `after_initialize` callback is triggered each time record is initialized using method `.new`.
 
 ## Skipping callbacks
 
@@ -102,7 +102,7 @@ There are 2 additional callbacks that are triggered right after database transac
 ```crystal
 class User < Jennifer::Model::Base
   mapping(
-    id: Primary32,
+    id: Primary64,
     name: String
   )
   after_save :saved
